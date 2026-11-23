@@ -1,0 +1,70 @@
+﻿<Window x:Class="WpfApp_ML.NET_Classification.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:WpfApp_ML.NET_Classification"
+        mc:Ignorable="d"
+        Title="ML.NET Classification" Height="760" Width="900"
+        MinHeight="560" MinWidth="640">
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="2*" />
+            <RowDefinition Height="3*" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" Margin="0,0,0,14" FontSize="20" FontWeight="SemiBold"
+                   Text="Обучение модели классификации" />
+
+        <Grid Grid.Row="1" Margin="0,0,0,12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBox x:Name="DatasetPathTextBox" Grid.Column="0" Height="30" Padding="6"
+                     IsReadOnly="True" VerticalContentAlignment="Center"
+                     ToolTip="Путь к выбранному файлу" />
+            <Button x:Name="ChooseDatasetButton" Grid.Column="1" Margin="10,0,0,0" Padding="14,4"
+                    Content="Выбрать файл..." Click="ChooseDatasetButton_Click" />
+        </Grid>
+
+        <WrapPanel Grid.Row="2" Margin="0,0,0,12" VerticalAlignment="Center">
+            <TextBlock Margin="0,0,6,0" VerticalAlignment="Center" Text="Индекс метки:" />
+            <TextBox x:Name="LabelColumnTextBox" Width="48" Margin="0,0,16,0" Padding="4"
+                     Text="0" VerticalContentAlignment="Center" />
+            <TextBlock Margin="0,0,6,0" VerticalAlignment="Center" Text="Есть заголовок:" />
+            <ComboBox x:Name="HasHeaderComboBox" Width="72" Margin="0,0,16,0" SelectedIndex="0">
+                <ComboBoxItem Content="false" />
+                <ComboBoxItem Content="true" />
+            </ComboBox>
+            <TextBlock Margin="0,0,6,0" VerticalAlignment="Center" Text="Имя модели:" />
+            <TextBox x:Name="ModelNameTextBox" Width="130" Margin="0,0,16,0" Padding="4"
+                     Text="SentimentModel" VerticalContentAlignment="Center" />
+            <TextBlock Margin="0,0,6,0" VerticalAlignment="Center" Text="Время (сек.):" />
+            <TextBox x:Name="TrainTimeTextBox" Width="48" Margin="0,0,16,0" Padding="4"
+                     Text="60" VerticalContentAlignment="Center" />
+            <Button x:Name="TrainButton" Margin="0,0,8,0" Padding="14,5"
+                    Content="Обучить" Click="TrainButton_Click" />
+            <Button x:Name="StopButton" Padding="14,5" Content="Остановить"
+                    IsEnabled="False" Click="StopButton_Click" />
+        </WrapPanel>
+
+        <GroupBox Grid.Row="3" Margin="0,0,0,12"
+                  Header="Предварительный просмотр (первые 10 строк)" Padding="8">
+            <TextBox x:Name="PreviewTextBox" IsReadOnly="True" AcceptsReturn="True"
+                     TextWrapping="NoWrap" HorizontalScrollBarVisibility="Auto"
+                     VerticalScrollBarVisibility="Auto" FontFamily="Consolas"
+                     BorderThickness="0" />
+        </GroupBox>
+
+        <GroupBox Grid.Row="4" Header="Вывод mlnet" Padding="8">
+            <TextBox x:Name="TrainingOutputTextBox" IsReadOnly="True" AcceptsReturn="True"
+                     TextWrapping="NoWrap" HorizontalScrollBarVisibility="Auto"
+                     VerticalScrollBarVisibility="Auto" FontFamily="Consolas"
+                     />
+        </GroupBox>
+    </Grid>
+</Window>

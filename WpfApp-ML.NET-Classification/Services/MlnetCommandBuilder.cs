@@ -9,14 +9,18 @@ namespace WpfApp_ML.NET_Classification.Services
     public static class MlnetCommandBuilder
     {
         public static ProcessStartInfo CreateStartInfo(string datasetPath, int labelColumn,
-            bool hasHeader, string modelName, int trainTime)
+            bool hasHeader, string modelName, int trainTime, string outputDirectory, string verbosity)
         {
+            var verbosityArgument = string.Equals(verbosity, "quiet", StringComparison.OrdinalIgnoreCase)
+                ? "q"
+                : string.Equals(verbosity, "diagnostic", StringComparison.OrdinalIgnoreCase) ? "diag" : "m";
             var arguments = "classification --dataset " + QuoteArgument(datasetPath) +
                 " --label-col " + labelColumn.ToString(CultureInfo.InvariantCulture) +
                 " --has-header " + (hasHeader ? "true" : "false") +
-                " --allow-quote true" +
-                " --name " + QuoteArgument(modelName) +
-                " --train-time " + trainTime.ToString(CultureInfo.InvariantCulture);
+                " --allow-quote true --name " + QuoteArgument(modelName) +
+                " --train-time " + trainTime.ToString(CultureInfo.InvariantCulture) +
+                " --output " + QuoteArgument(outputDirectory) +
+                " --verbosity " + verbosityArgument;
 
             return new ProcessStartInfo
             {
@@ -32,29 +36,7 @@ namespace WpfApp_ML.NET_Classification.Services
             };
         }
 
-        public static ProcessStartInfo CreateStartInfo(string datasetPath, int labelColumn,
-            bool hasHeader, string modelName, int trainTime, string outputDirectory, string verbosity)
-        {
-            var startInfo = CreateStartInfo(datasetPath, labelColumn, hasHeader, modelName, trainTime);
-            startInfo.Arguments += " --output " + QuoteArgument(outputDirectory);
-
-            if (string.Equals(verbosity, "quiet", StringComparison.OrdinalIgnoreCase))
-            {
-                startInfo.Arguments += " --verbosity q";
-            }
-            else if (string.Equals(verbosity, "diagnostic", StringComparison.OrdinalIgnoreCase))
-            {
-                startInfo.Arguments += " --verbosity diag";
-            }
-            else
-            {
-                startInfo.Arguments += " --verbosity m";
-            }
-
-            return startInfo;
-        }
-
-        private static string QuoteArgument(string argument)
+        public static string QuoteArgument(string argument)
         {
             var result = new StringBuilder("\"");
             var backslashCount = 0;

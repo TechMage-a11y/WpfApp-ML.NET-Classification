@@ -19,8 +19,8 @@ namespace WpfApp_ML.NET_Classification.Services
             var startInfo = new ProcessStartInfo
             {
                 FileName = "dotnet",
-                Arguments = "run --no-launch-profile --project " + QuoteArgument(projectPath) +
-                    " -- " + QuoteArgument(text),
+                Arguments = "run --no-launch-profile --project " + MlnetCommandBuilder.QuoteArgument(projectPath) +
+                    " -- " + MlnetCommandBuilder.QuoteArgument(text),
                 WorkingDirectory = System.IO.Path.GetDirectoryName(projectPath),
                 UseShellExecute = false,
                 CreateNoWindow = true,
@@ -49,32 +49,6 @@ namespace WpfApp_ML.NET_Classification.Services
                     StandardError = stderrTask.Result
                 };
             }
-        }
-
-        private static string QuoteArgument(string argument)
-        {
-            var result = new StringBuilder("\"");
-            var backslashCount = 0;
-            foreach (var character in argument)
-            {
-                if (character == '\\')
-                {
-                    backslashCount++;
-                }
-                else if (character == '"')
-                {
-                    result.Append('\\', backslashCount * 2 + 1).Append('"');
-                    backslashCount = 0;
-                }
-                else
-                {
-                    result.Append('\\', backslashCount).Append(character);
-                    backslashCount = 0;
-                }
-            }
-
-            result.Append('\\', backslashCount * 2).Append('"');
-            return result.ToString();
         }
     }
 }

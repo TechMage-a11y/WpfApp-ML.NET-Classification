@@ -1,7 +1,6 @@
 using System.IO;
 using System.Linq;
 using System.Text;
-using System.Text.RegularExpressions;
 
 namespace WpfApp_ML.NET_Classification.Services
 {
@@ -14,13 +13,6 @@ namespace WpfApp_ML.NET_Classification.Services
 
     public static class GeneratedAppModifier
     {
-        private static readonly Regex LoadColumnPattern = new Regex(
-            @"\[LoadColumn\((?<index>\d+)\)\][\s\S]{0,300}?public\s+string\s+(?<property>[A-Za-z_]\w*)\s*\{",
-            RegexOptions.Compiled);
-        private static readonly Regex ClassPattern = new Regex(
-            @"\b(?:public|internal|private|protected)\s+(?:static\s+)?(?:partial\s+)?class\s+(?<name>[A-Za-z_]\w*)\b",
-            RegexOptions.Compiled);
-
         public static GeneratedAppModificationResult Modify(string projectPath, int labelColumn)
         {
             var projectDirectory = Path.GetDirectoryName(projectPath);
@@ -41,8 +33,8 @@ namespace WpfApp_ML.NET_Classification.Services
             }
 
             var modelSource = sourceFiles.Select(File.ReadAllText)
-                .FirstOrDefault(source => Regex.IsMatch(source, @"class\s+ModelInput\b") &&
-                    Regex.IsMatch(source, @"PredictAllLabels\s*\(\s*ModelInput\s+"));
+                .FirstOrDefault(source => source.Contains("class ModelInput") &&
+                    source.Contains("PredictAllLabels") && source.Contains("ModelInput "));
             if (modelSource == null)
             {
                 return new GeneratedAppModificationResult
@@ -52,17 +44,15 @@ namespace WpfApp_ML.NET_Classification.Services
                 };
             }
 
-            var modelNamespace = Regex.Match(modelSource,
-                @"namespace\s+(?<name>[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)");
-            var modelInput = Regex.Match(modelSource, @"class\s+ModelInput\b");
-            var modelOwner = modelInput.Success
-                ? ClassPattern.Matches(modelSource.Substring(0, modelInput.Index)).Cast<Match>().LastOrDefault()
-                : null;
-            var modelClassName = modelOwner == null ? null : modelOwner.Groups["name"].Value;
-            var textProperty = LoadColumnPattern.Matches(modelSource).Cast<Match>()
-                .FirstOrDefault(match => int.Parse(match.Groups["index"].Value) != labelColumn);
+            var namespaceName = ReadIdentifierAfter(modelSource, "namespace ", '.');
+            var modelInputIndex = modelSource.IndexOf("class ModelInput", System.StringComparison.Ordinal);
+            var modelOwnerIndex = modelInputIndex > 0
+                ? modelSource.LastIndexOf("class ", modelInputIndex - 1, System.StringComparison.Ordinal)
+                : -1;
+            var modelClassName = modelOwnerIndex < 0 ? null : ReadIdentifierAfter(modelSource, "class ", ' ', modelOwnerIndex);
+            var textProperty = FindTextProperty(modelSource, labelColumn);
 
-            if (!modelNamespace.Success || string.IsNullOrWhiteSpace(modelClassName) || textProperty == null)
+            if (string.IsNullOrWhiteSpace(namespaceName) || string.IsNullOrWhiteSpace(modelClassName) || textProperty == null)
             {
                 return new GeneratedAppModificationResult
                 {
@@ -78,9 +68,9 @@ namespace WpfApp_ML.NET_Classification.Services
                 encoding = reader.CurrentEncoding;
             }
 
-            var modelType = "global::" + modelNamespace.Groups["name"].Value + "." + modelClassName;
+            var modelType = "global::" + namespaceName + "." + modelClassName;
             var modelInputType = modelType + ".ModelInput";
-            var propertyName = textProperty.Groups["property"].Value;
+            var propertyName = textProperty;
             var generatedProgram = new StringBuilder();
             generatedProgram.AppendLine("using System;")
                 .AppendLine("using System.Linq;")
@@ -90,7 +80,7 @@ namespace WpfApp_ML.NET_Classification.Services
                 .AppendLine("    {")
                 .AppendLine("        if (args.Length == 0)")
                 .AppendLine("        {")
-                .AppendLine("            Console.Error.WriteLine(\"Pass text to classify as the first argument.\");")
+                .AppendLine("            Console.Error.WriteLine(\"Ошибка: передайте текст для классификации первым аргументом.\");")
                 .AppendLine("            return 2;")
                 .AppendLine("        }")
                 .Append("        var input = new ").Append(modelInputType).Append(" { ")
@@ -99,10 +89,10 @@ namespace WpfApp_ML.NET_Classification.Services
                 .AppendLine(".PredictAllLabels(input).FirstOrDefault();")
                 .AppendLine("        if (best.Key == null)")
                 .AppendLine("        {")
-                .AppendLine("            Console.Error.WriteLine(\"The model returned no predictions.\");")
+                .AppendLine("            Console.Error.WriteLine(\"Ошибка: модель не вернула предсказаний.\");")
                 .AppendLine("            return 3;")
                 .AppendLine("        }")
-                .AppendLine("        Console.WriteLine(\"Prediction: {0}, Score: {1}\", best.Key, best.Value);")
+                .AppendLine("        Console.WriteLine(\"Класс: {0}, Оценка: {1}\", best.Key, best.Value);")
                 .AppendLine("        return 0;")
                 .AppendLine("    }")
                 .AppendLine("}");
@@ -112,8 +102,102 @@ namespace WpfApp_ML.NET_Classification.Services
             {
                 Success = true,
                 ProgramPath = programPath,
-                Message = "Program.cs изменён: он принимает текст аргументом и выводит предсказанный класс и оценку."
+                Message = "Файл Program.cs изменён: теперь он принимает текст аргументом и выводит предсказанный класс и оценку."
             };
+        }
+
+        private static string ReadIdentifierAfter(string source, string marker, char endCharacter, int startIndex = 0)
+        {
+            var start = source.IndexOf(marker, startIndex, System.StringComparison.Ordinal);
+            if (start < 0)
+            {
+                return null;
+            }
+
+            start += marker.Length;
+            var end = start;
+            while (end < source.Length && (char.IsLetterOrDigit(source[end]) || source[end] == '_' ||
+                                           (endCharacter == '.' && source[end] == '.')))
+            {
+                end++;
+            }
+
+            return end == start ? null : source.Substring(start, end - start);
+        }
+
+        private static string FindTextProperty(string source, int labelColumn)
+        {
+            var marker = "[LoadColumn(";
+            var position = 0;
+            while ((position = source.IndexOf(marker, position, System.StringComparison.Ordinal)) >= 0)
+            {
+                var indexStart = position + marker.Length;
+                var indexEnd = source.IndexOf(")]", indexStart, System.StringComparison.Ordinal);
+                if (indexEnd < 0 || !int.TryParse(source.Substring(indexStart, indexEnd - indexStart), out var column))
+                {
+                    position = indexStart;
+                    continue;
+                }
+
+                if (column != labelColumn)
+                {
+                    var propertyName = ReadStringPropertyAfter(source, indexEnd + 2, marker);
+                    if (propertyName != null)
+                    {
+                        return propertyName;
+                    }
+                }
+
+                position = indexEnd + 2;
+            }
+
+            return null;
+        }
+
+        private static string ReadStringPropertyAfter(string source, int start, string nextColumnMarker)
+        {
+            var propertyStart = source.IndexOf("public ", start, System.StringComparison.Ordinal);
+            var nextColumnStart = source.IndexOf(nextColumnMarker, start, System.StringComparison.Ordinal);
+            if (propertyStart < 0 || (nextColumnStart >= 0 && nextColumnStart < propertyStart))
+            {
+                return null;
+            }
+
+            var typeStart = propertyStart + "public ".Length;
+            while (typeStart < source.Length && char.IsWhiteSpace(source[typeStart]))
+            {
+                typeStart++;
+            }
+
+            var typeEnd = typeStart;
+            while (typeEnd < source.Length && (char.IsLetterOrDigit(source[typeEnd]) || source[typeEnd] == '_'))
+            {
+                typeEnd++;
+            }
+
+            if (typeEnd - typeStart != "string".Length ||
+                string.Compare(source, typeStart, "string", 0, "string".Length, System.StringComparison.Ordinal) != 0)
+            {
+                return null;
+            }
+
+            if (typeEnd < source.Length && source[typeEnd] == '?')
+            {
+                typeEnd++;
+            }
+
+            while (typeEnd < source.Length && char.IsWhiteSpace(source[typeEnd]))
+            {
+                typeEnd++;
+            }
+
+            var nameEnd = typeEnd;
+            while (nameEnd < source.Length && (char.IsLetterOrDigit(source[nameEnd]) || source[nameEnd] == '_'))
+            {
+                nameEnd++;
+            }
+
+            return nameEnd == typeEnd ? null : source.Substring(typeEnd, nameEnd - typeEnd);
         }
     }
 }

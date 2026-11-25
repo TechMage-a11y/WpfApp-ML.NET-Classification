@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
-using System.Text.RegularExpressions;
 
 namespace WpfApp_ML.NET_Classification.Services
 {
@@ -15,53 +14,138 @@ namespace WpfApp_ML.NET_Classification.Services
 
     public static class MlnetResultParser
     {
-        private static readonly Regex MetricPattern = new Regex(
-            @"(?<name>MacroAccuracy|MicroAccuracy|Accuracy|F1\s*Score|F1Score|AUC|Log\s*Loss|LogLoss)\s*(?:[:=]|\|?\s+)\s*(?<value>[+-]?[0-9]+(?:[.,][0-9]+)?(?:[eE][+-]?[0-9]+)?)",
-            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        private static readonly string[] MetricNames =
+        {
+            "MacroAccuracy", "MicroAccuracy", "Accuracy", "F1 Score", "F1Score",
+            "AUC", "Log Loss", "LogLoss"
+        };
 
         public static IList<KeyValuePair<string, string>> ParseMetrics(string output)
         {
             var metrics = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             var text = output ?? string.Empty;
-            foreach (Match match in MetricPattern.Matches(text))
+            for (var position = 0; position < text.Length; position++)
             {
-                var name = Regex.Replace(match.Groups["name"].Value, @"\s+", string.Empty);
-                if (!metrics.ContainsKey(name))
+                foreach (var metricName in MetricNames)
                 {
-                    metrics[name] = match.Groups["value"].Value;
+                    if (!IsMetricAt(text, position, metricName))
+                    {
+                        continue;
+                    }
+
+                    var valueStart = FindMetricValueStart(text, position + metricName.Length);
+                    if (valueStart >= 0 && TryReadNumber(text, valueStart, out var value, out var valueEnd))
+                    {
+                        StoreBestMetric(metrics, metricName.Replace(" ", string.Empty), value);
+                        position = valueEnd - 1;
+                    }
+
+                    break;
                 }
             }
 
-            var macroAccuracy = new Regex(
-                @"^\s*\|\s*\d+\s+\S+\s+(?<value>[+-]?(?:\d+(?:[.,]\d*)?|[.,]\d+)(?:[eE][+-]?\d+)?)(?:\s+[^|]*)?\s*\|?\s*$",
-                RegexOptions.Compiled);
             foreach (var line in text.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
             {
-                var match = macroAccuracy.Match(line);
-                if (!match.Success)
+                var columns = line.Trim().Trim('|').Split((char[])null, StringSplitOptions.RemoveEmptyEntries);
+                if (columns.Length < 3 || !int.TryParse(columns[0], out _) ||
+                    !TryReadNumber(columns[2], 0, out var value, out var valueEnd) || valueEnd != columns[2].Length)
                 {
                     continue;
                 }
 
-                var value = match.Groups["value"].Value;
-                double parsedValue;
-                double currentValue;
-                if (!metrics.TryGetValue("MacroAccuracy", out var current) ||
-                    (double.TryParse(value.Replace(',', '.'), NumberStyles.Float,
-                         CultureInfo.InvariantCulture, out parsedValue) &&
-                     double.TryParse(current.Replace(',', '.'), NumberStyles.Float,
-                         CultureInfo.InvariantCulture, out currentValue) && parsedValue > currentValue))
-                {
-                    metrics["MacroAccuracy"] = value;
-                }
+                StoreBestMetric(metrics, "MacroAccuracy", value);
             }
 
             return metrics.OrderBy(metric => metric.Key, StringComparer.OrdinalIgnoreCase).ToList();
         }
 
-        public static TrainingArtifacts FindArtifacts(string outputDirectory, string modelName)
+        private static void StoreBestMetric(IDictionary<string, string> metrics, string name, string value)
         {
-            return FindArtifacts(outputDirectory, modelName, DateTime.MinValue);
+            if (!TryParseMetricValue(value, out var candidate))
+            {
+                return;
+            }
+
+            if (!metrics.TryGetValue(name, out var currentValue) ||
+                !TryParseMetricValue(currentValue, out var current))
+            {
+                metrics[name] = value;
+                return;
+            }
+
+            var isLoss = name.Equals("LogLoss", StringComparison.OrdinalIgnoreCase);
+            if ((isLoss && candidate < current) || (!isLoss && candidate > current))
+            {
+                metrics[name] = value;
+            }
+        }
+
+        private static bool IsMetricAt(string text, int position, string name)
+        {
+            if (position > 0 && char.IsLetterOrDigit(text[position - 1]))
+            {
+                return false;
+            }
+
+            if (position + name.Length > text.Length ||
+                string.Compare(text, position, name, 0, name.Length, StringComparison.OrdinalIgnoreCase) != 0)
+            {
+                return false;
+            }
+
+            var end = position + name.Length;
+            return end == text.Length || !char.IsLetterOrDigit(text[end]);
+        }
+
+        private static int FindMetricValueStart(string text, int position)
+        {
+            var separator = position;
+            while (position < text.Length && char.IsWhiteSpace(text[position]))
+            {
+                position++;
+            }
+
+            if (position < text.Length && (text[position] == ':' || text[position] == '='))
+            {
+                position++;
+            }
+            else
+            {
+                if (position < text.Length && text[position] == '|')
+                {
+                    position++;
+                }
+                else if (position == separator)
+                {
+                    return -1;
+                }
+            }
+
+            while (position < text.Length && char.IsWhiteSpace(text[position]))
+            {
+                position++;
+            }
+
+            return position;
+        }
+
+        private static bool TryReadNumber(string text, int start, out string value, out int end)
+        {
+            end = start;
+            while (end < text.Length && (char.IsDigit(text[end]) || "+-.,eE".IndexOf(text[end]) >= 0))
+            {
+                end++;
+            }
+
+            value = end == start ? string.Empty : text.Substring(start, end - start);
+            double parsed;
+            return value.Length > 0 && TryParseMetricValue(value, out parsed);
+        }
+
+        private static bool TryParseMetricValue(string value, out double parsed)
+        {
+            return double.TryParse(value.Replace(',', '.'), NumberStyles.Float,
+                CultureInfo.InvariantCulture, out parsed);
         }
 
         public static TrainingArtifacts FindArtifacts(string outputDirectory, string modelName,
@@ -75,53 +159,19 @@ namespace WpfApp_ML.NET_Classification.Services
             var modelDirectory = Path.Combine(outputDirectory, modelName);
             var searchDirectory = Directory.Exists(modelDirectory) ? modelDirectory : outputDirectory;
             var modelPath = Directory.GetFiles(searchDirectory, "*.*", SearchOption.AllDirectories)
-                .Where(path => !IsBuildOutput(path) &&
-                    (string.Equals(Path.GetExtension(path), ".zip", StringComparison.OrdinalIgnoreCase) ||
-                     string.Equals(Path.GetExtension(path), ".mlnet", StringComparison.OrdinalIgnoreCase)) &&
-                    File.GetLastWriteTimeUtc(path) >= notBeforeUtc)
-                .OrderByDescending(path => string.Equals(Path.GetFileNameWithoutExtension(path), modelName,
-                    StringComparison.OrdinalIgnoreCase))
+                .Where(path => (Path.GetExtension(path).Equals(".mlnet", StringComparison.OrdinalIgnoreCase) ||
+                                Path.GetExtension(path).Equals(".zip", StringComparison.OrdinalIgnoreCase)) &&
+                               File.GetLastWriteTimeUtc(path) >= notBeforeUtc)
+                .OrderByDescending(File.GetLastWriteTimeUtc)
+                .FirstOrDefault();
+
+            var projectPath = Directory.GetFiles(searchDirectory, "*.csproj", SearchOption.AllDirectories)
+                .OrderByDescending(path => Path.GetFileNameWithoutExtension(path).Equals(
+                    modelName, StringComparison.OrdinalIgnoreCase))
                 .ThenByDescending(File.GetLastWriteTimeUtc)
                 .FirstOrDefault();
 
-            var projectDirectory = modelPath == null ? searchDirectory : Path.GetDirectoryName(modelPath);
-            var projectCandidates = Directory.GetFiles(projectDirectory, "*.csproj", SearchOption.AllDirectories)
-                .Where(path => !IsBuildOutput(path))
-                .Select(path => new
-                {
-                    Path = path,
-                    ProgramPath = FindProgramFile(Path.GetDirectoryName(path)),
-                    ExactName = string.Equals(Path.GetFileNameWithoutExtension(path), modelName,
-                        StringComparison.OrdinalIgnoreCase) ||
-                        string.Equals(Path.GetFileName(Path.GetDirectoryName(path)), modelName,
-                            StringComparison.OrdinalIgnoreCase)
-                })
-                .Where(candidate => candidate.ProgramPath != null)
-                .OrderByDescending(candidate => candidate.ExactName)
-                .ThenByDescending(candidate => File.GetLastWriteTimeUtc(candidate.Path))
-                .ToList();
-
-            return new TrainingArtifacts
-            {
-                ModelPath = modelPath,
-                ProjectPath = projectCandidates.FirstOrDefault()?.Path
-            };
-        }
-
-        private static string FindProgramFile(string projectDirectory)
-        {
-            return Directory.GetFiles(projectDirectory, "Program.cs", SearchOption.AllDirectories)
-                .Where(path => !IsBuildOutput(path))
-                .OrderBy(path => path.Length)
-                .FirstOrDefault();
-        }
-
-        private static bool IsBuildOutput(string path)
-        {
-            return path.IndexOf(Path.DirectorySeparatorChar + "obj" + Path.DirectorySeparatorChar,
-                       StringComparison.OrdinalIgnoreCase) >= 0 ||
-                   path.IndexOf(Path.DirectorySeparatorChar + "bin" + Path.DirectorySeparatorChar,
-                       StringComparison.OrdinalIgnoreCase) >= 0;
+            return new TrainingArtifacts { ModelPath = modelPath, ProjectPath = projectPath };
         }
     }
 }

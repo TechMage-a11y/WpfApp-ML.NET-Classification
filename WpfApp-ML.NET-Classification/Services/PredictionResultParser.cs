@@ -1,6 +1,3 @@
-using System;
-using System.Text.RegularExpressions;
-
 namespace WpfApp_ML.NET_Classification.Services
 {
     public sealed class PredictionResult
@@ -11,35 +8,52 @@ namespace WpfApp_ML.NET_Classification.Services
 
     public static class PredictionResultParser
     {
-        private static readonly Regex LabelPattern = new Regex(
-            @"(?:Prediction|Predicted\s*(?:Label|value)?|PredictedLabel)\s*[:=]\s*(?<label>[^,\r\n]+)",
-            RegexOptions.IgnoreCase | RegexOptions.Compiled);
-
-        private static readonly Regex ProbabilityPattern = new Regex(
-            @"(?:Probability|Confidence|Score)\s*[:=]\s*(?<value>[+-]?[0-9]+(?:[.,][0-9]+)?(?:[eE][+-]?[0-9]+)?)",
-            RegexOptions.IgnoreCase | RegexOptions.Compiled);
-
         public static PredictionResult Parse(string output)
         {
-            var text = output ?? string.Empty;
-            var label = LabelPattern.Match(text);
-            if (!label.Success)
+            string label = null;
+            string score = null;
+            var fields = (output ?? string.Empty).Split(new[] { ',', '\r', '\n' },
+                System.StringSplitOptions.RemoveEmptyEntries);
+
+            foreach (var field in fields)
             {
-                label = Regex.Match(text, @"PredictedLabel\s*:\s*(?<label>[^\s,]+)",
-                    RegexOptions.IgnoreCase);
+                var separator = field.IndexOfAny(new[] { ':', '=' });
+                if (separator < 0)
+                {
+                    continue;
+                }
+
+                var name = field.Substring(0, separator).Trim();
+                var value = field.Substring(separator + 1).Trim();
+                var normalizedName = name.Replace(" ", string.Empty).ToLowerInvariant();
+                if (normalizedName == "prediction" || normalizedName == "predicted" ||
+                    normalizedName == "predictedlabel" || normalizedName == "predictedvalue" ||
+                    normalizedName == "класс" || normalizedName == "предсказание")
+                {
+                    label = value.Trim('"', '\'');
+                }
+                else if (normalizedName == "probability" || normalizedName == "confidence" ||
+                         normalizedName == "score" || normalizedName == "оценка" ||
+                         normalizedName == "вероятность" || normalizedName == "уверенность")
+                {
+                    score = ReadNumber(value);
+                }
             }
 
-            var probability = ProbabilityPattern.Match(text);
-            if (!label.Success)
+            return string.IsNullOrEmpty(label) ? null : new PredictionResult { Label = label, Score = score };
+        }
+
+        private static string ReadNumber(string value)
+        {
+            var end = 0;
+            while (end < value.Length && (char.IsDigit(value[end]) || "+-.,eE".IndexOf(value[end]) >= 0))
             {
-                return null;
+                end++;
             }
 
-            return new PredictionResult
-            {
-                Label = label.Groups["label"].Value.Trim().Trim('"', '\''),
-                Score = probability.Success ? probability.Groups["value"].Value : null
-            };
+            var number = end == 0 ? null : value.Substring(0, end);
+            return double.TryParse(number?.Replace(',', '.'), System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture, out _) ? number : null;
         }
     }
 }

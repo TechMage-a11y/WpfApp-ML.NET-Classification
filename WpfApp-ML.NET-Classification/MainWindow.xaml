@@ -3,68 +3,175 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:local="clr-namespace:WpfApp_ML.NET_Classification"
         mc:Ignorable="d"
-        Title="ML.NET Classification" Height="760" Width="900"
-        MinHeight="560" MinWidth="640">
-    <Grid Margin="20">
+        Title="Классификация текста" Height="780" Width="1050"
+        MinHeight="650" MinWidth="900">
+    <Grid Margin="10">
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="2*" />
-            <RowDefinition Height="3*" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="155" />
         </Grid.RowDefinitions>
 
-        <TextBlock Grid.Row="0" Margin="0,0,0,14" FontSize="20" FontWeight="SemiBold"
-                   Text="Обучение модели классификации" />
-
-        <Grid Grid.Row="1" Margin="0,0,0,12">
+        <Grid Grid.Row="0" Margin="0,0,0,4">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
-            <TextBox x:Name="DatasetPathTextBox" Grid.Column="0" Height="30" Padding="6"
-                     IsReadOnly="True" VerticalContentAlignment="Center"
-                     ToolTip="Путь к выбранному файлу" />
-            <Button x:Name="ChooseDatasetButton" Grid.Column="1" Margin="10,0,0,0" Padding="14,4"
-                    Content="Выбрать файл..." Click="ChooseDatasetButton_Click" />
+            <Grid Grid.Column="0" Margin="0,0,4,0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <GroupBox Grid.Row="0" Header="1. Датасет" Padding="7" Margin="0,0,0,6">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <Grid Grid.Row="0" Margin="0,0,0,5">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBox Grid.Column="0" Height="30" Padding="6" IsReadOnly="True"
+                                     VerticalContentAlignment="Center" Text="{Binding DatasetPath, Mode=OneWay}" />
+                            <Button Grid.Column="1" Margin="8,0,0,0" Padding="14,4"
+                                    Content="Выбрать файл..." IsEnabled="{Binding CanChooseDataset}"
+                                    Click="ChooseDatasetButton_Click" />
+                        </Grid>
+                        <WrapPanel Grid.Row="1" Margin="0,0,0,5">
+                            <TextBlock Margin="0,0,6,0" VerticalAlignment="Center" Text="Индекс колонки метки:" />
+                            <TextBox Width="55" Margin="0,0,18,0" Padding="4"
+                                     IsEnabled="{Binding CanChooseDataset}" VerticalContentAlignment="Center"
+                                     Text="{Binding LabelColumn, UpdateSourceTrigger=PropertyChanged}" />
+                            <TextBlock Margin="0,0,6,0" VerticalAlignment="Center" Text="Есть заголовок:" />
+                            <ComboBox Width="76" IsEnabled="{Binding CanChooseDataset}" SelectedValuePath="Content"
+                                      SelectedValue="{Binding HasHeader, UpdateSourceTrigger=PropertyChanged}">
+                                <ComboBoxItem Content="false" />
+                                <ComboBoxItem Content="true" />
+                            </ComboBox>
+                        </WrapPanel>
+                        <TextBlock Grid.Row="2" Margin="0,0,0,4" FontWeight="SemiBold"
+                                   Text="Предварительный просмотр — первые 20 строк" />
+                        <TextBox Grid.Row="3" MinHeight="85" IsReadOnly="True" AcceptsReturn="True"
+                                 TextWrapping="NoWrap" HorizontalScrollBarVisibility="Auto"
+                                 VerticalScrollBarVisibility="Auto" FontFamily="Consolas"
+                                 Text="{Binding DatasetPreview, Mode=OneWay}" />
+                    </Grid>
+                </GroupBox>
+
+                <GroupBox Grid.Row="1" Header="2. Параметры обучения" Padding="7" Margin="0,0,0,6">
+                    <StackPanel>
+                        <WrapPanel Margin="0,0,0,6">
+                            <TextBlock Margin="0,0,6,0" VerticalAlignment="Center" Text="Имя модели:" />
+                            <TextBox Width="150" Margin="0,0,18,0" Padding="4"
+                                     IsEnabled="{Binding CanChooseDataset}"
+                                     Text="{Binding ModelName, UpdateSourceTrigger=PropertyChanged}"
+                                     VerticalContentAlignment="Center" />
+                            <TextBlock Margin="0,0,6,0" VerticalAlignment="Center" Text="Время, сек.:" />
+                            <TextBox Width="55" Margin="0,0,18,0" Padding="4"
+                                     IsEnabled="{Binding CanChooseDataset}"
+                                     Text="{Binding TrainTime, UpdateSourceTrigger=PropertyChanged}"
+                                     VerticalContentAlignment="Center" />
+                            <TextBlock Margin="0,5,6,0" VerticalAlignment="Center" Text="Подробность журнала:" />
+                            <ComboBox Width="130" Margin="0,5,0,0"
+                                      IsEnabled="{Binding CanChooseDataset}" SelectedValuePath="Tag"
+                                      SelectedValue="{Binding Verbosity, UpdateSourceTrigger=PropertyChanged}">
+                                <ComboBoxItem Content="Обычный" Tag="minimal" />
+                                <ComboBoxItem Content="Подробный" Tag="diagnostic" />
+                                <ComboBoxItem Content="Минимальный" Tag="quiet" />
+                            </ComboBox>
+                        </WrapPanel>
+                        <Grid Margin="0,0,0,6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Margin="0,0,8,0" VerticalAlignment="Center"
+                                       Text="Папка результатов:" />
+                            <TextBox Grid.Column="1" Padding="4" IsEnabled="{Binding CanChooseDataset}"
+                                     Text="{Binding OutputDirectory, UpdateSourceTrigger=PropertyChanged}"
+                                     VerticalContentAlignment="Center" />
+                        </Grid>
+                        <WrapPanel>
+                            <Button Margin="0,0,8,0" Padding="18,6" Content="Обучить модель"
+                                    Command="{Binding TrainCommand}" />
+                            <Button Padding="18,6" Content="Остановить"
+                                    Command="{Binding StopCommand}" />
+                            <TextBlock Margin="14,0,0,0" VerticalAlignment="Center"
+                                       Foreground="SteelBlue" Text="{Binding TrainingStatus}" />
+                        </WrapPanel>
+                    </StackPanel>
+                </GroupBox>
+            </Grid>
+
+            <Grid Grid.Column="1" Margin="4,0,0,0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <GroupBox Grid.Row="0" Header="3. Результаты обучения" Padding="7" Margin="0,0,0,6">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <TextBlock Grid.Row="0" Margin="0,0,0,4" Text="{Binding MetricsStatus}" />
+                        <ListView Grid.Row="1" ItemsSource="{Binding Metrics}" MinHeight="75" Margin="0,0,0,5">
+                            <ListView.View>
+                                <GridView>
+                                    <GridViewColumn Header="Метрика" Width="180" DisplayMemberBinding="{Binding Name}" />
+                                    <GridViewColumn Header="Значение" Width="140" DisplayMemberBinding="{Binding Value}" />
+                                </GridView>
+                            </ListView.View>
+                        </ListView>
+                        <Grid Grid.Row="2" Margin="0,0,0,4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Margin="0,0,8,0" VerticalAlignment="Center" Text="Модель:" />
+                            <TextBox Grid.Column="1" IsReadOnly="True" Padding="4"
+                                     Text="{Binding ModelPath, Mode=OneWay}" />
+                        </Grid>
+                        <Grid Grid.Row="3">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Margin="0,0,8,0" VerticalAlignment="Center"
+                                       Text="Консольный проект:" />
+                            <TextBox Grid.Column="1" IsReadOnly="True" Padding="4"
+                                     Text="{Binding GeneratedProjectPath, Mode=OneWay}" />
+                        </Grid>
+                    </Grid>
+                </GroupBox>
+
+                <GroupBox Grid.Row="1" Header="4. Классификация текста" Padding="7" Margin="0,0,0,6">
+                    <StackPanel>
+                        <TextBox MinHeight="55" Padding="5" AcceptsReturn="True" TextWrapping="Wrap"
+                                 VerticalScrollBarVisibility="Auto" IsEnabled="{Binding CanPredict}"
+                                 Text="{Binding PredictionText, UpdateSourceTrigger=PropertyChanged}" />
+                        <WrapPanel Margin="0,5,0,0">
+                            <Button Padding="16,6" Content="Классифицировать"
+                                    Command="{Binding PredictCommand}" />
+                            <TextBlock Margin="12,0,0,0" VerticalAlignment="Center" FontWeight="SemiBold"
+                                       Text="{Binding PredictionResult}" />
+                        </WrapPanel>
+                    </StackPanel>
+                </GroupBox>
+            </Grid>
         </Grid>
 
-        <WrapPanel Grid.Row="2" Margin="0,0,0,12" VerticalAlignment="Center">
-            <TextBlock Margin="0,0,6,0" VerticalAlignment="Center" Text="Индекс метки:" />
-            <TextBox x:Name="LabelColumnTextBox" Width="48" Margin="0,0,16,0" Padding="4"
-                     Text="0" VerticalContentAlignment="Center" />
-            <TextBlock Margin="0,0,6,0" VerticalAlignment="Center" Text="Есть заголовок:" />
-            <ComboBox x:Name="HasHeaderComboBox" Width="72" Margin="0,0,16,0" SelectedIndex="0">
-                <ComboBoxItem Content="false" />
-                <ComboBoxItem Content="true" />
-            </ComboBox>
-            <TextBlock Margin="0,0,6,0" VerticalAlignment="Center" Text="Имя модели:" />
-            <TextBox x:Name="ModelNameTextBox" Width="130" Margin="0,0,16,0" Padding="4"
-                     Text="SentimentModel" VerticalContentAlignment="Center" />
-            <TextBlock Margin="0,0,6,0" VerticalAlignment="Center" Text="Время (сек.):" />
-            <TextBox x:Name="TrainTimeTextBox" Width="48" Margin="0,0,16,0" Padding="4"
-                     Text="60" VerticalContentAlignment="Center" />
-            <Button x:Name="TrainButton" Margin="0,0,8,0" Padding="14,5"
-                    Content="Обучить" Click="TrainButton_Click" />
-            <Button x:Name="StopButton" Padding="14,5" Content="Остановить"
-                    IsEnabled="False" Click="StopButton_Click" />
-        </WrapPanel>
-
-        <GroupBox Grid.Row="3" Margin="0,0,0,12"
-                  Header="Предварительный просмотр (первые 10 строк)" Padding="8">
-            <TextBox x:Name="PreviewTextBox" IsReadOnly="True" AcceptsReturn="True"
-                     TextWrapping="NoWrap" HorizontalScrollBarVisibility="Auto"
-                     VerticalScrollBarVisibility="Auto" FontFamily="Consolas"
-                     BorderThickness="0" />
-        </GroupBox>
-
-        <GroupBox Grid.Row="4" Header="Вывод mlnet" Padding="8">
-            <TextBox x:Name="TrainingOutputTextBox" IsReadOnly="True" AcceptsReturn="True"
-                     TextWrapping="NoWrap" HorizontalScrollBarVisibility="Auto"
-                     VerticalScrollBarVisibility="Auto" FontFamily="Consolas"
-                     />
+        <GroupBox Grid.Row="1" Header="Ход выполнения и сообщения mlnet" Padding="6" Margin="0,4,0,0">
+            <TextBox x:Name="TrainingOutputTextBox" TextChanged="TrainingOutputTextBox_TextChanged"
+                     IsReadOnly="True" AcceptsReturn="True" TextWrapping="NoWrap"
+                     HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
+                     FontFamily="Consolas" Text="{Binding TrainingOutput, Mode=OneWay}" />
         </GroupBox>
     </Grid>
 </Window>

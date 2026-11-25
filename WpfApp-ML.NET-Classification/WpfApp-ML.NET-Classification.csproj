@@ -67,9 +67,15 @@
       <DependentUpon>MainWindow.xaml</DependentUpon>
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="MainWindowViewModel.cs" />
+    <Compile Include="Services\RelayCommand.cs" />
     <Compile Include="Services\DatasetPreviewReader.cs" />
     <Compile Include="Services\MlnetCommandBuilder.cs" />
     <Compile Include="Services\MlnetProcessRunner.cs" />
+    <Compile Include="Services\MlnetResultParser.cs" />
+    <Compile Include="Services\GeneratedAppModifier.cs" />
+    <Compile Include="Services\PredictionClient.cs" />
+    <Compile Include="Services\PredictionResultParser.cs" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Properties\AssemblyInfo.cs">

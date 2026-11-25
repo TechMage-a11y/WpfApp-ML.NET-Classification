@@ -2,9 +2,7 @@ using System;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
-using System.Globalization;
 using System.IO;
-using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -13,13 +11,7 @@ using WpfApp_ML.NET_Classification.Services;
 
 namespace WpfApp_ML.NET_Classification
 {
-    public sealed class MetricItem
-    {
-        public string Name { get; set; }
-        public string Value { get; set; }
-    }
-
-    public sealed class MainWindowViewModel : INotifyPropertyChanged
+    public sealed class MainWindowViewModel : ViewModelBase
     {
         private readonly MlnetProcessRunner _processRunner = new MlnetProcessRunner();
         private readonly StringBuilder _trainingLog = new StringBuilder();
@@ -55,8 +47,6 @@ namespace WpfApp_ML.NET_Classification
                       File.Exists(GeneratedProjectPath) && !string.IsNullOrWhiteSpace(PredictionText));
             _processRunner.OutputReceived += ProcessRunner_OutputReceived;
         }
-
-        public event PropertyChangedEventHandler PropertyChanged;
 
         public ObservableCollection<MetricItem> Metrics { get; private set; }
         public ICommand TrainCommand { get { return _trainCommand; } }
@@ -123,53 +113,19 @@ namespace WpfApp_ML.NET_Classification
 
         private async Task TrainAsync()
         {
-            int labelColumn;
-            int trainTime;
-            var modelName = (ModelName ?? string.Empty).Trim();
-            var outputDirectory = (OutputDirectory ?? string.Empty).Trim();
-            bool hasHeader;
-
-            if (!File.Exists(DatasetPath))
+            if (!TrainingOptionsValidator.TryCreate(DatasetPath, DatasetColumnCount, LabelColumn,
+                    HasHeader, ModelName, TrainTime, OutputDirectory, Verbosity,
+                    out var options, out var validationError))
             {
-                TrainingStatus = "Выберите существующий файл датасета.";
+                TrainingStatus = validationError;
                 return;
             }
 
-            if (!int.TryParse(LabelColumn, NumberStyles.Integer, CultureInfo.InvariantCulture, out labelColumn) || labelColumn < 0)
-            {
-                TrainingStatus = "Индекс колонки метки должен быть неотрицательным целым числом.";
-                return;
-            }
-
-            if (DatasetColumnCount < 2 || labelColumn >= DatasetColumnCount)
-            {
-                TrainingStatus = "Индекс метки вне диапазона колонок датасета или в файле недостаточно колонок.";
-                return;
-            }
-
-            if (!bool.TryParse(HasHeader, out hasHeader))
-            {
-                TrainingStatus = "Укажите, содержит ли датасет заголовок.";
-                return;
-            }
-
-            if (string.IsNullOrWhiteSpace(modelName) || modelName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
-            {
-                TrainingStatus = "Укажите допустимое имя модели.";
-                return;
-            }
-
-            if (!int.TryParse(TrainTime, NumberStyles.Integer, CultureInfo.InvariantCulture, out trainTime) || trainTime <= 0)
-            {
-                TrainingStatus = "Время обучения должно быть положительным целым числом.";
-                return;
-            }
-
-            if (string.IsNullOrWhiteSpace(outputDirectory))
-            {
-                TrainingStatus = "Укажите папку результатов.";
-                return;
-            }
+            var labelColumn = options.LabelColumn;
+            var modelName = options.ModelName;
+            var outputDirectory = options.OutputDirectory;
+            var hasHeader = options.HasHeader;
+            var trainTime = options.TrainTime;
 
             try
             {
@@ -459,21 +415,5 @@ namespace WpfApp_ML.NET_Classification
             }
         }
 
-        private bool SetProperty<T>(ref T field, T value, [CallerMemberName] string propertyName = null)
-        {
-            if (Equals(field, value))
-            {
-                return false;
-            }
-
-            field = value;
-            OnPropertyChanged(propertyName);
-            return true;
-        }
-
-        private void OnPropertyChanged([CallerMemberName] string propertyName = null)
-        {
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
-        }
     }
 }
